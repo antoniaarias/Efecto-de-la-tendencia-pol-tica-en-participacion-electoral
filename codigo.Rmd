@@ -1,0 +1,504 @@
+---
+title: "Analisis T1 exploración"
+output: html_document
+date: "2023-04-13"
+---
+GRUPO 2 analisis de datos
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Procesamiento de Datos 
+
+```{r}
+rm(list=ls())         # Limpia la lista de objetos 
+install.packages(readxl)
+library(dplyr)
+library(haven)
+library(writexl)
+library(readxl)
+library(foreign)
+library(stringr)
+library(stringi)
+library(readxl)
+
+
+# carpeta de trabajo
+setwd("C:/Users/javie/OneDrive - Universidad de Chile/Escritorio/ANALISIS DE DATOS/Tarea_1")
+
+
+casen <- read_sav("Casen 2017.sav")
+
+
+segundaVueltaBD <- read_excel("2021_12_Presidencial_2V.xlsx")
+salidaBD <- read_excel("2022_PlebiscitoConstitucional.xlsx")
+entradaBD <- read_excel("2020_PlebiscitoConstitucionPolitica.xlsx")
+InscritosTotalBD <- read_excel("comunaInscritos.xlsx")
+
+##################################################################################
+# Segunda vuelta presidencial
+
+segundaVueltaBD <- data.frame(setNames(segundaVueltaBD,segundaVueltaBD[4,]))
+segundaVueltaBD2 <- slice(segundaVueltaBD, 5:n())
+segundaVuelta <- segundaVueltaBD2 %>%
+  select(.,Comuna,Mesa,Local,Nro.Voto,Nombres,Votos) %>% #tomar las variables de interes
+  mutate(.,Nro.Voto = replace(Nro.Voto,Nombres=="VOTOS NULOS",3)) %>% 
+  mutate(.,Nro.Voto = replace(Nro.Voto,Nombres=="VOTOS EN BLANCO",4)) %>% 
+  select(.,-Nombres) %>% 
+  na.omit()
+  
+# write_xlsx(segundaVuelta,path="BDSegundaVuelta.xlsx")
+
+# boric
+casos1SV <- segundaVuelta %>% 
+  filter(Nro.Voto==1) %>% 
+  select(-Nro.Voto) %>% 
+  rename(Votos1=Votos) %>%
+  mutate(Votos1=as.numeric(Votos1))
+
+sumaBoris <- casos1SV %>%
+  group_by(Comuna) %>% 
+  summarise(sum(Votos1))
+
+sumaBoris <- rename(sumaBoris,totalVotosB = `sum(Votos1)`)
+
+
+ # kast
+casos2SV <- segundaVuelta %>% 
+  filter(Nro.Voto==2) %>% 
+  select(-Nro.Voto)%>% 
+  rename(Votos2=Votos) %>% 
+  mutate(Votos2=as.numeric(Votos2))
+
+sumaKast <- casos2SV %>%
+  group_by(Comuna) %>% 
+  summarise(sum(Votos2))
+
+sumaKast <- rename(sumaKast,totalVotosK = `sum(Votos2)`)
+  
+segundaVueltaComuna <- sumaBoris %>% 
+  merge(sumaKast,by="Comuna") %>% 
+  mutate(SV= totalVotosB/(totalVotosK + totalVotosB)) %>% 
+  group_by(Comuna) %>% 
+  summarise(sum(SV))
+
+segundaVueltaComuna$Comuna <- stri_trans_general(segundaVueltaComuna$Comuna, "Latin-ASCII")
+
+
+#write_xlsx(segundaVueltaComuna,path="BDSegundaVueltaComuna.xlsx")
+
+
+###############################################################################
+# Plebiscito de salida
+
+salidaBD <- data.frame(setNames(salidaBD,salidaBD[4,]))
+
+salidaBD2 <- slice(salidaBD, 5:n())
+salida <- salidaBD2 %>% 
+  select(.,Comuna,Mesa,Local,Nro.Voto,Opciones,Votos) %>% #tomar las variables de interes
+  mutate(.,Nro.Voto = replace(Nro.Voto,Opciones=="VOTOS NULOS",3)) %>% 
+  mutate(.,Nro.Voto = replace(Nro.Voto,Opciones=="VOTOS EN BLANCO",4))%>% 
+  select(.,-Opciones) %>% 
+  na.omit()
+
+#write_xlsx(salida,path="BDPlebSalida.xlsx")
+
+# apruebo
+casos1salida <- salida %>% 
+  filter(Nro.Voto==1) %>% 
+  select(-Nro.Voto) %>% 
+  rename(Votos1=Votos) %>%
+  mutate(Votos1=as.numeric(Votos1))
+  
+# rechazo
+casos2salida <- salida %>% 
+  filter(Nro.Voto==2) %>% 
+  select(-Nro.Voto)%>% 
+  rename(Votos2=Votos) %>% 
+  mutate(Votos2=as.numeric(Votos2))
+
+salidaComuna <- casos1salida %>% 
+  merge(casos2salida,by=c("Comuna","Mesa","Local")) %>% 
+  mutate(participacion=Votos1 + Votos2) %>% 
+  group_by(Comuna) %>% 
+  summarise(sum(participacion))
+salidaComuna$Comuna <- stri_trans_general(salidaComuna$Comuna, "Latin-ASCII")
+
+# write_xlsx(salidaComuna,path="BDPlebSalidaComuna.xlsx")
+
+################################################################################
+
+#Plebiscito de entrada
+entradaBD <- data.frame(setNames(entradaBD,entradaBD[4,]))
+entradaBD2 <- slice(entradaBD, 5:n())
+
+entrada <- entradaBD2 %>% 
+  select(.,Comuna,Mesa,Local,Nro.Voto,Nombres,Votos) %>% #tomar las variables de interes
+  mutate(.,Nro.Voto = replace(Nro.Voto,Nombres=="VOTOS NULOS",3)) %>% 
+  mutate(.,Nro.Voto = replace(Nro.Voto,Nombres=="VOTOS EN BLANCO",4))%>% 
+  select(.,-Nombres) %>% 
+  na.omit()
+
+# write_xlsx(entrada,path="BDPlebEntrada.xlsx")
+
+# apruebo
+casos1entrada <- entrada %>% 
+  filter(Nro.Voto==1) %>% 
+  select(-Nro.Voto) %>% 
+  rename(Votos1=Votos) %>%
+  mutate(Votos1=as.numeric(Votos1))
+
+# rechazo
+casos2entrada <- entrada %>% 
+  filter(Nro.Voto==2) %>% 
+  select(-Nro.Voto)%>% 
+  rename(Votos2=Votos) %>% 
+  mutate(Votos2=as.numeric(Votos2))
+
+entradaComuna <- casos1entrada %>% 
+  merge(casos2entrada,by=c("Comuna","Mesa","Local")) %>% 
+  mutate(participacion=Votos1 + Votos2) %>% 
+  group_by(Comuna) %>% 
+  summarise(sum(participacion))
+entradaComuna$Comuna <- stri_trans_general(entradaComuna$Comuna, "Latin-ASCII")
+
+# write_xlsx(entradaComuna,path="BDPlebEntradaComuna.xlsx")
+
+################################################################################
+
+# casen
+# la casen no tiene datos de todas las comunas de chile
+
+casenModificado <- casen %>% 
+  select(.,comuna,edad,expc,e6a,educ,pobreza,s12,zona) %>%
+  mutate(.,zona=ifelse(zona == 1,0,1)) %>%
+  filter(.,edad>=18,s12 != 8,s12 != 9) %>%  #eliminar ninguno y otro sistema
+  mutate(.,s12 = ifelse(s12 == 1|s12 == 2|s12 == 3|s12 == 4|s12 == 5|s12 == 99,0,1)) %>% 
+  na.omit()
+
+# write_xlsx(casenModificado,path="CasenPorHogar.xlsx")
+
+# necesito saber la cantidad de personas por comuna para calcular promedios comunales
+cantidadPorComuna <- casenModificado %>% 
+  group_by(comuna) %>% 
+  summarise(sum(expc))
+
+casenModificado <- casenModificado %>% 
+  mutate(edad=as.numeric(edad),e6a=as.numeric(e6a),educ=as.numeric(educ),pobreza=as.numeric(pobreza),s12=as.numeric(s12))
+library(dplyr)
+library(stringi)
+
+casenComuna <- casenModificado %>%
+  merge(cantidadPorComuna,by="comuna") %>%
+  mutate(edad=edad*expc/`sum(expc)`,e6a=e6a*expc/`sum(expc)`,s12=s12**expc/`sum(expc)`) %>% 
+  mutate(educ=educ*expc/`sum(expc)`,pobreza=pobreza*expc/`sum(expc)`, zona = zona*expc/`sum(expc)`) %>%
+  mutate(Comuna=comuna) %>% 
+  group_by(Comuna) %>% 
+  summarise_at(vars(edad,e6a,educ,pobreza,s12,zona),list(~ sum(.)))
+
+
+# necesito transformar los nombres de comunas
+
+# extraer etiquetas
+
+# la encuesta casen las incluye como labels
+codigosComunas <- stack(attr(casen$comuna,"labels")) 
+codigosComunas <- codigosComunas %>% 
+  setNames(c("numeroComuna","Comuna")) %>% 
+  mutate(Comuna=toupper(.$Comuna))
+
+casenComuna <- casenComuna %>% 
+  rename(numeroComuna=Comuna) %>% 
+  merge(codigosComunas,by="numeroComuna") %>% 
+  select(-numeroComuna)
+
+casenComuna$Comuna <- stri_trans_general(casenComuna$Comuna, "Latin-ASCII")
+
+#Cambiar nombres a Comunas de CASEN
+
+casenComuna$Comuna[casenComuna$Comuna =="PAIGUANO"]<-"PAIHUANO"
+
+casenComuna$Comuna[casenComuna$Comuna =="MARCHIHUE"]<-"MARCHIGUE"
+casenComuna$Comuna[casenComuna$Comuna =="TREGUACO"]<-"TREHUACO"
+"TREHUACO" %in% casenComuna$Comuna
+
+
+# write_xlsx(casenComuna,path="CasenComuna.xlsx")
+
+################################################################################
+
+# base de datos final
+
+library(dplyr)
+
+BDFinal <- casenComuna %>%
+  rename(casen_edad=edad,casen_e6a=e6a,casen_educ=educ,casen_pobreza=pobreza,casen_prevision=s12,casen_zona = zona) %>%  
+  merge(segundaVueltaComuna,by="Comuna") %>% 
+  rename(SV = `sum(SV)`)  %>% 
+  merge(entradaComuna,by="Comuna") %>% 
+  rename(Pleb_entrada_participacion = `sum(participacion)`) %>%
+  merge(salidaComuna,by="Comuna") %>% 
+  merge(InscritosTotalBD,by="Comuna")%>%
+  rename(Pleb_salida_participacion_vosos = `sum(participacion)`) %>% 
+  mutate(tasadp = ((Pleb_salida_participacion_vosos/InscritosTotalSalida) - (Pleb_entrada_participacion/InscritosTotalEntrada)))
+write_xlsx(BDFinal,path="BDpreliminar.xlsx")
+
+#diferentes <- casenComuna$Comuna[casenComuna$Comuna != BDFinal$Comuna]
+#diferentes <- subset(BDFinal,Comuna != casenComuna$Comuna)
+#comunasDiferentes <- diferentes$Comuna
+
+elementos_no_encontrados <- c()
+
+# Recorrer los elementos de la columna en el dataframe
+for (i in 1:length(casenComuna$Comuna)) {
+  # Obtener el valor de la columna en la fila actual
+  valor_actual <- casenComuna$Comuna[i]
+  
+  # Verificar si el valor no est? presente en la otra columna
+  if (valor_actual %in% BDFinal$Comuna) {
+    # El valor est? presente en la otra columna, no hacer nada
+  } else {
+    # El valor no est? presente en la otra columna, almacenarlo en el vector
+    elementos_no_encontrados <- append(elementos_no_encontrados, valor_actual)
+  }
+}
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+##AED
+
+```{r}
+library(readxl)
+BD <- read_excel("/Users/antoniaarias/Desktop/Auxiliar/Bases de Datos aux/BD.xlsx")
+View(BD)
+BD$SV <- 1- BD$SV
+
+
+```
+
+##previsión
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Set theme
+my_theme <- theme(
+  text = element_text(family = "Times New Roman"),
+  plot.title = element_text(size = 14, face = "bold", hjust = 0.3),
+  axis.title = element_text(size = 12),
+  axis.text = element_text(size = 8),
+  legend.title = element_text(size = 10),
+  legend.text = element_text(size = 8)
+)
+
+# Create a scatterplot with color based on casen_prevision
+ggplot(data = BD, aes(x = SV, y = tasadp, color = casen_prevision)) +
+  geom_point(size=1) +
+  geom_text(data = BD %>% filter(tasadp > 0.57 | tasadp < 0.2 | SV < 0.27 | SV > 0.8),
+            aes(label = Comuna), nudge_x = 0.01, nudge_y = 0.01, size = 3, hjust = 0.7) + scale_color_gradient(low = "blue", high = "red") +
+                      
+  labs(x = "% de votos Kast", y = "Diferencia de tasa de participación",
+       color = "Previsión",
+       title = "Relación entre la diferencia de tasa de participación y la tendencia\npolítica acorde a la previsión de la comuna") +
+  my_theme 
+
+```
+
+#educacion
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+my_theme <- theme(
+  text = element_text(family = "Times New Roman"),
+  plot.title = element_text(size = 14, face = "bold", hjust = 0.3),
+  axis.title = element_text(size = 12),
+  axis.text = element_text(size = 8),
+  legend.title = element_text(size = 10),
+  legend.text = element_text(size = 8)
+)
+
+
+ggplot(data = BD, aes(x = SV, y = tasadp, color = casen_educ)) +
+  geom_point(size=1) +
+  geom_text(data = BD %>% filter(tasadp > 0.57 | tasadp < 0.2 | SV < 0.27 | SV > 0.8),
+            aes(label = Comuna), nudge_x = 0.01, nudge_y = 0.01, size = 3, hjust = 0.7) + scale_color_gradient(low = "blue", high = "red") +
+                      
+  labs(x = "% de votos Kast", y = "Diferencia de tasa de participación",
+       color = "Educación",
+       title = "Relación entre la diferencia de tasa de participación y la tendencia\npolítica acorde a la educación de la comuna") +
+  my_theme 
+
+```
+
+#riqueza
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+my_theme <- theme(
+  text = element_text(family = "Times New Roman"),
+  plot.title = element_text(size = 14, face = "bold", hjust = 0.3),
+  axis.title = element_text(size = 12),
+  axis.text = element_text(size = 8),
+  legend.title = element_text(size = 10),
+  legend.text = element_text(size = 8)
+)
+
+ggplot(data = BD, aes(x = SV, y = tasadp, color = casen_pobreza)) +
+  geom_point(size=1) +
+  geom_text(data = BD %>% filter(tasadp > 0.57 | tasadp < 0.2 | SV < 0.27 | SV > 0.8),
+            aes(label = Comuna), nudge_x = 0.01, nudge_y = 0.01, size = 3, hjust = 0.7) + scale_color_gradient(low = "red", high = "blue") +
+                      
+  labs(x = "% de votos Kast", y = "Diferencia de tasa de participación",
+       color = "Riqueza",
+       title = "Relación entre la diferencia de tasa de participación y la tendencia\npolítica acorde a la riqueza de la comuna") +
+  my_theme 
+
+```
+
+#zona
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Set theme
+my_theme <- theme(
+  text = element_text(family = "Times New Roman"),
+  plot.title = element_text(size = 14, face = "bold", hjust = 0.3),
+  axis.title = element_text(size = 12),
+  axis.text = element_text(size = 8),
+  legend.title = element_text(size = 10),
+  legend.text = element_text(size = 8)
+)
+
+
+ggplot(data = BD, aes(x = SV, y = tasadp, color = casen_zona)) +
+  geom_point(size=1) +
+  geom_text(data = BD %>% filter(tasadp > 0.57 | tasadp < 0.2 | SV < 0.27 | SV > 0.8),
+            aes(label = Comuna), nudge_x = 0.01, nudge_y = 0.01, size = 3, hjust = 0.7) + scale_color_gradient(low = "blue", high = "red") +
+                      
+  labs(x = "% de votos Kast", y = "Diferencia de tasa de participación",
+       color = "Zona",
+       title = "Relación entre la diferencia de tasa de participación y la tendencia\npolítica acorde a la zona de la comuna") +
+  my_theme 
+
+```
+
+
+
+```{r}
+
+# Rename variables
+names(BD)[names(BD) == "casen_zona"] <- "Zona"
+names(BD)[names(BD) == "casen_educ"] <- "Educación"
+names(BD)[names(BD) == "casen_pobreza"] <- "Riqueza"
+names(BD)[names(BD) == "casen_prevision"] <- "Previsión"
+names(BD)[names(BD) == "SV"] <- "% de votos Kast"
+names(BD)[names(BD) == "tasadp"] <- "Dif. de tasa de participación"
+
+variables <- c("Zona", "Educación", "Riqueza", "Previsión", "% de votos Kast", "Dif. de tasa de participación")
+
+sub_df <- BD[variables]
+
+num_cols <- unlist(lapply(sub_df, is.numeric))
+bd_num <- sub_df[, num_cols]
+
+options(repr.plot.width = 5, repr.plot.height = 5)
+
+# Cambiar el font a Times New Roman
+par(family = "Times New Roman")
+
+# Crear una nueva ventana de gráficos
+plot.new()
+
+# Agregar el título
+title("Matriz de correlación de variables socioeconómicas en Chile", line = 2)
+
+# Dibujar la matriz de correlación
+corrplot(cor(bd_num))
+
+```
+
+
+
+
+
+
+
+
+
+
+##Regresión Lineal
+
+
+```{r}
+
+
+#modelos sin interacciones
+
+
+m2 <- lm(tasadp ~ SV + casen_pobreza, data=BDpreliminar) #SOLO I
+m3 <- lm(tasadp ~ SV + casen_educ, data=BDpreliminar) #SOLO A
+m4 <- lm(tasadp ~ SV + casen_zona, data=BDpreliminar) #SOLO E
+
+m5 <- lm(tasadp ~ SV + casen_pobreza + casen_zona, data=BDpreliminar) #  I +E
+m6 <- lm(tasadp ~ SV + casen_pobreza + casen_educ, data=BDpreliminar) # I + A
+m7 <- lm(tasadp ~ SV + casen_zona + casen_educ, data=BDpreliminar) # E + A
+
+
+m8 <- lm(tasadp ~ SV + casen_pobreza + casen_zona + casen_educ, data=BDpreliminar) #I + E+ A
+
+mI <- lm(tasadp ~ SV + casen_pobreza + casen_zona + casen_educ + casen_educ*casen_pobreza, data=BDpreliminar) #todos + interaccion
+
+
+stargazer(m1,m2,m3,m4,m6,m7,m8, m9, mI, type="html", out="modelos.htm")
+
+
+
+```
+
+
+
+
+```{r}
+
+library(car)
+fiv <- vif(m1)
+
+print(fiv)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
